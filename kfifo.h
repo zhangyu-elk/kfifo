@@ -10,7 +10,10 @@
 #include <stdio.h>
 #include <limits.h>
 
-#define min(a, b)	(((a) < (b)) ? (a) : (b))
+inline unsigned int min(unsigned int a, unsigned int b)
+{
+	return (a < b) ? a : b;
+}
 
 //判断数是不是2的幂次方
 inline int is_power_of_2(unsigned int num)
