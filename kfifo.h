@@ -10,18 +10,18 @@
 #include <stdio.h>
 #include <limits.h>
 
-inline unsigned int min(unsigned int a, unsigned int b)
+unsigned int min(unsigned int a, unsigned int b)
 {
 	return (a < b) ? a : b;
 }
 
 //判断数是不是2的幂次方
-inline int is_power_of_2(unsigned int num)
+int is_power_of_2(unsigned int num)
 {
 	return (num != 0 && ((num & (num - 1)) == 0)) ? 1 : 0;
 }
 //将数扩展为2的幂次方
-inline long roundup_pow_of_two(unsigned long num)
+long roundup_pow_of_two(unsigned long num)
 {
 	unsigned long ret = 1;
 	unsigned long num_bk = num;
@@ -35,16 +35,15 @@ inline long roundup_pow_of_two(unsigned long num)
 typedef struct kfifo kfifo_t;
 struct kfifo
 {
-	unsigned char 	*buffer;
-	unsigned int 	size;
-	unsigned int	in;
-	unsigned int 	out;
+	unsigned char 	*buffer;                //队列内存区间
+	unsigned int 	size;                   //队列大小
+	unsigned int	in;                     //向队列中存数据时的位置
+	unsigned int 	out;                    //从队列中取数据时的位置
 };
 
+//初始化kfifo结构体，会把buffer大小扩充到2的倍数
 kfifo_t *kfifo_init(unsigned char *buffer, unsigned int size)
 {
-	
-	
 	kfifo_t *ret = NULL;
 	
 	if(!is_power_of_2(size))
@@ -105,26 +104,44 @@ void kfifo_reset(kfifo_t *queue)
 	}
 }
 
+unsigned int kfifo_cap(kfifo_t *queue)
+{
+    if (NULL == queue) {
+        return 0;
+    }
+    return queue->size;
+}
+
 unsigned int kfifo_len(kfifo_t *queue)
 {
+    if (NULL == queue) {
+        return 0;
+    }
 	return (queue->in - queue->out);
-	//如果走到了末尾是由可能, in小于out的
 }
 
 unsigned int kfifo_put(kfifo_t *queue,
              unsigned char *buffer, unsigned int len)
 {
-    unsigned int l;
-	
-	len = min(len, queue->size - queue->in + queue->out);
-	//可复制的长度, 如果最后in跑到out前面去了, 由于unsigned int 循环所以取得值还是正确的
-	l = min(len, queue->size - (queue->in & (queue->size - 1)));
-	//in后续的空间
-	memcpy(queue->buffer + (queue->in & (queue->size - 1)), buffer, l);
-	//复制到in后面
-	memcpy(queue->buffer, buffer + l, len - l);
-	//如果还有, 复制到buffer开头
+    if (NULL == queue) {
+        return -1;
+    }
 
+    unsigned int l;
+
+    //queue中剩余的空间和len进行比较，得出可以放到buffer中的最长大小
+	len = min(len, queue->size - queue->in + queue->out);
+
+	//计算出从in到buffer缓冲区结束剩余的空间
+	l = min(len, queue->size - (queue->in & (queue->size - 1)));
+
+	//将插入的buffer数据中一部分复制到in后面
+	memcpy(queue->buffer + (queue->in & (queue->size - 1)), buffer, l);
+
+	//将插入的buffer数据中剩余的一部分复制到queue的开头
+	memcpy(queue->buffer, buffer + l, len - l);
+
+	//长度增长，in会不断增长直到超过unsigned int可表示的数然后变为0
     queue->in += len;
 
     return len;
@@ -133,15 +150,20 @@ unsigned int kfifo_put(kfifo_t *queue,
 unsigned int kfifo_get(kfifo_t *queue, unsigned char *buffer, unsigned int len)
 {
 	unsigned int l = 0;
-	
+
+	//queue中总的数据长度和len比较，得出的就是此次可取出的最大数据
 	len = min(len, queue->in - queue->out);
-	//可复制的长度, unsigned int循环特性
+
+	//计算出out后面有多少数据
 	l = min(len, queue->size - (queue->out & (queue->size - 1)));
-	//out到buffer末尾后面数据的长度
+
+	//将kfifo中out后面的数据复制到buffer中
 	memcpy(buffer, queue->buffer + (queue->out & (queue->size - 1)), l);
-	
+
+	//如果kfifo头部还有一部分数据，同样复制到buffer中
 	memcpy(buffer + l, queue->buffer, len - l);
-	
+
+	//out同样是在不停的增长
 	queue->out += len;
 	
 	return len;
